@@ -82,6 +82,31 @@ static char launchNotificationKey;
     }
 }
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
+// this method is invoked when:
+// - one of the buttons of an interactive notification is tapped
+// see https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/IPhoneOSClientImp.html#//apple_ref/doc/uid/TP40008194-CH103-SW1
+- (void)application:(UIApplication *) application handleActionWithIdentifier: (NSString *) identifier forRemoteNotification: (NSDictionary *) notification completionHandler: (void (^)()) completionHandler {
+
+  // the notification already contains the category, but the client also needs the identifier (action button)
+  NSMutableDictionary *mutableNotification = [notification mutableCopy];
+
+  [mutableNotification setObject:identifier forKey:@"identifier"];
+  
+  if (application.applicationState == UIApplicationStateActive) {
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
+    pushHandler.notificationMessage = mutableNotification;
+    pushHandler.isInline = YES;
+    [pushHandler notificationReceived];
+  } else {
+    // save it for later
+    self.launchNotification = mutableNotification;
+  }
+  
+  completionHandler();
+}
+#endif
+
 - (void)applicationDidBecomeActive:(UIApplication *)application {
 
     NSLog(@"active");
