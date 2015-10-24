@@ -63,23 +63,17 @@ static char launchNotificationKey;
 }
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
-    NSLog(@"didReceiveNotification");
-
-    // Get application state for iOS4.x+ devices, otherwise assume active
-    UIApplicationState appState = UIApplicationStateActive;
-    if ([application respondsToSelector:@selector(applicationState)]) {
-        appState = application.applicationState;
-    }
-
-    if (appState == UIApplicationStateActive) {
-        PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];
-        pushHandler.notificationMessage = userInfo;
-        pushHandler.isInline = YES;
-        [pushHandler notificationReceived];
-    } else {
-        //save it for later
-        self.launchNotification = userInfo;
-    }
+	NSLog(@"didReceiveNotification");
+	  
+	  if (application.applicationState == UIApplicationStateActive) {
+		PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];
+		pushHandler.notificationMessage = userInfo;
+		pushHandler.isInline = YES;
+		[pushHandler notificationReceived];
+	  } else {
+		//save it for later
+		self.launchNotification = userInfo;
+	  }
 }
 
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
@@ -88,56 +82,40 @@ static char launchNotificationKey;
 // see https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/IPhoneOSClientImp.html#//apple_ref/doc/uid/TP40008194-CH103-SW1
 - (void)application:(UIApplication *) application handleActionWithIdentifier: (NSString *) identifier forRemoteNotification: (NSDictionary *) notification completionHandler: (void (^)()) completionHandler {
 
+  NSLog(@"PushPlugin: Interactive Notification button pressed");
+  
   // the notification already contains the category, but the client also needs the identifier (action button)
   NSMutableDictionary *mutableNotification = [notification mutableCopy];
 
   [mutableNotification setObject:identifier forKey:@"identifier"];
   
   if (application.applicationState == UIApplicationStateActive) {
-    PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];
     pushHandler.notificationMessage = mutableNotification;
     pushHandler.isInline = YES;
     [pushHandler notificationReceived];
   } else {
-    // save it for later
-    self.launchNotification = mutableNotification;
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];    
+    pushHandler.notificationMessage = mutableNotification;    
+    [pushHandler performSelectorOnMainThread:@selector(notificationReceived) withObject:pushHandler waitUntilDone:NO];
   }
-  
   completionHandler();
 }
 #endif
 
 - (void)applicationDidBecomeActive:(UIApplication *)application {
-
     NSLog(@"active");
 
     PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];
-    if (pushHandler.clearBadge) {
-        NSLog(@"PushPlugin clearing badge");
-        //zero badge
-        application.applicationIconBadgeNumber = 0;        
-    } else {
-        NSLog(@"PushPlugin skip clear badge");
-    }
-
-    if (self.launchNotification) {
-        pushHandler.isInline = NO;
-        pushHandler.notificationMessage = self.launchNotification;
-        self.launchNotification = nil;
-        [pushHandler performSelectorOnMainThread:@selector(notificationReceived) withObject:pushHandler waitUntilDone:NO];
+    //zero badge
+	application.applicationIconBadgeNumber = 0;
+	
+	if (self.launchNotification) {
+		pushHandler.notificationMessage = self.launchNotification;
+		self.launchNotification = nil;
+		[pushHandler performSelectorOnMainThread:@selector(notificationReceived) withObject:pushHandler waitUntilDone:NO];
     }
 }
-
-//For interactive notification only
-- (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forRemoteNotification:(NSDictionary *)userInfo completionHandler:(void(^)())completionHandler
-{
-    //handle the actions
-    if ([identifier isEqualToString:@"declineAction"]){
-    }
-    else if ([identifier isEqualToString:@"answerAction"]){
-    }
-}
-
 
 // The accessors use an Associative Reference since you can't define a iVar in a category
 // http://developer.apple.com/library/ios/#documentation/cocoa/conceptual/objectivec/Chapters/ocAssociativeReferences.html

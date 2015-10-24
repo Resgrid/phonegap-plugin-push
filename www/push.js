@@ -110,7 +110,7 @@ PushNotification.prototype.registerUserNotificationSettings = function(successCa
         return
     }
 
-    cordova.exec(successCallback, errorCallback, "PushPlugin", "registerUserNotificationSettings", [options]);
+    cordova.exec(successCallback, errorCallback, "PushNotification", "registerUserNotificationSettings", [options]);
 };
 
 /**

@@ -110,8 +110,8 @@
     
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
     if ([[UIApplication sharedApplication]respondsToSelector:@selector(registerUserNotificationSettings:)]) {
-        UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:UserNotificationTypes categories:nil];
-        [[UIApplication sharedApplication] registerUserNotificationSettings:settings];
+        //UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:UserNotificationTypes categories:nil];
+        //[[UIApplication sharedApplication] registerUserNotificationSettings:settings];
         [[UIApplication sharedApplication] registerForRemoteNotifications];
     } else {
         [[UIApplication sharedApplication] registerForRemoteNotificationTypes:
@@ -130,84 +130,91 @@
 
 - (void)registerUserNotificationSettings:(CDVInvokedUrlCommand*)command;
 {
-  self.callbackId = command.callbackId;
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
-    if (![[UIApplication sharedApplication]respondsToSelector:@selector(registerUserNotificationSettings:)]) {
-        [self successWithMessage:[NSString stringWithFormat:@"%@", @"user notifications not supported for this ios version."]];
-        return;
-    }
-    
-  NSDictionary *options = [command.arguments objectAtIndex:0];
-  NSArray *categories = [options objectForKey:@"categories"];
-  if (categories == nil) {
-    [self failWithMessage:@"No categories specified" withError:nil];
-    return;
-  }
-  NSMutableArray *nsCategories = [[NSMutableArray alloc] initWithCapacity:[categories count]];
+	self.callbackId = command.callbackId;
+	#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
+	  if (![[UIApplication sharedApplication]respondsToSelector:@selector(registerUserNotificationSettings:)]) {
+		[self successWithMessage:[NSString stringWithFormat:@"%@", @"user notifications not supported for this ios version."]];
+		return;
+	  }
+		
+	  NSLog(@"PushPlugin: Register interactive notifiations starting");
+		
+	  NSDictionary *options = [command.arguments objectAtIndex:0];
+	  NSArray *categories = [options objectForKey:@"categories"];
+	  if (categories == nil) {
+		NSLog(@"PushPlugin: No categories, exiting");
+		[self failWithMessage:@"No categories specified" withError:nil];
+		return;
+	  }
+	  NSMutableArray *nsCategories = [[NSMutableArray alloc] initWithCapacity:[categories count]];
+	  
+	  for (NSDictionary *category in categories) {
+		// Identifier to include in your push payload and local notification
+		NSString *identifier = [category objectForKey:@"identifier"];
+		NSLog (@"PushPlugin: Processing Category: %@", identifier);
+		
+		if (identifier == nil) {
+		  [self failWithMessage:@"Category doesn't contain identifier" withError:nil];
+		  return;
+		}
+	  
+		// ** 1. create the actions for this category
+		NSMutableArray *nsActionsForDefaultContext = [[NSMutableArray alloc] initWithCapacity:4];
+		NSArray *actionsForDefaultContext = [category objectForKey:@"actionsForDefaultContext"];
+		if (actionsForDefaultContext == nil) {
+		  [self failWithMessage:@"Category doesn't contain actionsForDefaultContext" withError:nil];
+		  return;
+		}
+		if (![self createNotificationAction:category actions:actionsForDefaultContext nsActions:nsActionsForDefaultContext]) {
+		  return;
+		}
 
-  for (NSDictionary *category in categories) {
-    // ** 1. create the actions for this category
-    NSMutableArray *nsActionsForDefaultContext = [[NSMutableArray alloc] initWithCapacity:4];
-    NSArray *actionsForDefaultContext = [category objectForKey:@"actionsForDefaultContext"];
-    if (actionsForDefaultContext == nil) {
-      [self failWithMessage:@"Category doesn't contain actionsForDefaultContext" withError:nil];
-      return;
-    }
-    if (![self createNotificationAction:category actions:actionsForDefaultContext nsActions:nsActionsForDefaultContext]) {
-      return;
-    }
+		NSMutableArray *nsActionsForMinimalContext = [[NSMutableArray alloc] initWithCapacity:2];
+		NSArray *actionsForMinimalContext = [category objectForKey:@"actionsForMinimalContext"];
+		if (actionsForMinimalContext == nil) {
+		  [self failWithMessage:@"Category doesn't contain actionsForMinimalContext" withError:nil];
+		  return;
+		}
+		if (![self createNotificationAction:category actions:actionsForMinimalContext nsActions:nsActionsForMinimalContext]) {
+		  return;
+		}
 
-    NSMutableArray *nsActionsForMinimalContext = [[NSMutableArray alloc] initWithCapacity:2];
-    NSArray *actionsForMinimalContext = [category objectForKey:@"actionsForMinimalContext"];
-    if (actionsForMinimalContext == nil) {
-      [self failWithMessage:@"Category doesn't contain actionsForMinimalContext" withError:nil];
-      return;
-    }
-    if (![self createNotificationAction:category actions:actionsForMinimalContext nsActions:nsActionsForMinimalContext]) {
-      return;
-    }
+		// ** 2. create the category
+		UIMutableUserNotificationCategory *nsCategory = [[UIMutableUserNotificationCategory alloc] init];
 
-    // ** 2. create the category
-    UIMutableUserNotificationCategory *nsCategory = [[UIMutableUserNotificationCategory alloc] init];
-    // Identifier to include in your push payload and local notification
-    NSString *identifier = [category objectForKey:@"identifier"];
-    if (identifier == nil) {
-      [self failWithMessage:@"Category doesn't contain identifier" withError:nil];
-      return;
-    }
-    nsCategory.identifier = identifier;
-    // Add the actions to the category and set the action context
-    [nsCategory setActions:nsActionsForDefaultContext forContext:UIUserNotificationActionContextDefault];
-    // Set the actions to present in a minimal context
-    [nsCategory setActions:nsActionsForMinimalContext forContext:UIUserNotificationActionContextMinimal];
-    [nsCategories addObject:nsCategory];
-  }
+		nsCategory.identifier = identifier;
+		// Add the actions to the category and set the action context
+		[nsCategory setActions:nsActionsForDefaultContext forContext:UIUserNotificationActionContextDefault];
+		// Set the actions to present in a minimal context
+		[nsCategory setActions:nsActionsForMinimalContext forContext:UIUserNotificationActionContextMinimal];
+		[nsCategories addObject:nsCategory];
+	  }
 
-  // ** 3. Determine the notification types
-  NSArray *types = [options objectForKey:@"types"];
-  if (types == nil) {
-    [self failWithMessage:@"No types specified" withError:nil];
-    return;
-  }
-  UIUserNotificationType nsTypes = UIUserNotificationTypeNone;
-  for (NSString *type in types) {
-    if ([type isEqualToString:@"badge"]) {
-      nsTypes |= UIUserNotificationTypeBadge;
-    } else if ([type isEqualToString:@"alert"]) {
-      nsTypes |= UIUserNotificationTypeAlert;
-    } else if ([type isEqualToString:@"sound"]) {
-      nsTypes |= UIUserNotificationTypeSound;
-    } else {
-      [self failWithMessage:[NSString stringWithFormat:@"Unsupported type: %@, use one of badge, alert, sound", type] withError:nil];
-    }
-  }
+	  // ** 3. Determine the notification types
+	  NSArray *types = [options objectForKey:@"types"];
+	  if (types == nil) {
+		[self failWithMessage:@"No types specified" withError:nil];
+		return;
+	  }
+	  UIUserNotificationType nsTypes = UIUserNotificationTypeNone;
+	  for (NSString *type in types) {
+		if ([type isEqualToString:@"badge"]) {
+		  nsTypes |= UIUserNotificationTypeBadge;
+		} else if ([type isEqualToString:@"alert"]) {
+		  nsTypes |= UIUserNotificationTypeAlert;
+		} else if ([type isEqualToString:@"sound"]) {
+		  nsTypes |= UIUserNotificationTypeSound;
+		} else {
+		  [self failWithMessage:[NSString stringWithFormat:@"Unsupported type: %@, use one of badge, alert, sound", type] withError:nil];
+		}
+	  }
 
-  // ** 4. Register the notification categories
-  NSSet *nsCategorySet = [NSSet setWithArray:nsCategories];
-  UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:nsTypes categories:nsCategorySet];
-  [[UIApplication sharedApplication] registerUserNotificationSettings:settings];
-#endif
-  [self successWithMessage:[NSString stringWithFormat:@"%@", @"user notifications registered"]];
+	  // ** 4. Register the notification categories
+	  NSSet *nsCategorySet = [NSSet setWithArray:nsCategories];
+	  UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:nsTypes categories:nsCategorySet];
+	  [[UIApplication sharedApplication] registerUserNotificationSettings:settings];
+	#endif
+	[self successWithMessage:[NSString stringWithFormat:@"%@", @"user notifications registered"]];
 }
 
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
@@ -219,10 +226,15 @@
     UIMutableUserNotificationAction *nsAction = [[UIMutableUserNotificationAction alloc] init];
     // Define an ID string to be passed back to your app when you handle the action
     NSString *identifier = [action objectForKey:@"identifier"];
+	NSString *catId = [category objectForKey:@"identifier"];
+	
     if (identifier == nil) {
       [self failWithMessage:@"Action doesn't contain identifier" withError:nil];
       return NO;
     }
+	
+	NSLog (@"PushPlugin: Processing Action %@ for Category %@", identifier, catId);
+	
     nsAction.identifier = identifier;
     // Localized text displayed in the action button
     NSString *title = [action objectForKey:@"title"];
