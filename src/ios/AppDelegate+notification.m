@@ -82,7 +82,29 @@ static char launchNotificationKey;
 // see https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/IPhoneOSClientImp.html#//apple_ref/doc/uid/TP40008194-CH103-SW1
 - (void)application:(UIApplication *) application handleActionWithIdentifier: (NSString *) identifier forRemoteNotification: (NSDictionary *) notification completionHandler: (void (^)()) completionHandler {
 
-  NSLog(@"PushPlugin: Interactive Notification button pressed");
+  NSLog(@"PushPlugin: (REMOTE) Interactive Notification %@ button pressed", identifier);
+  
+  // the notification already contains the category, but the client also needs the identifier (action button)
+  NSMutableDictionary *mutableNotification = [notification mutableCopy];
+
+  [mutableNotification setObject:identifier forKey:@"identifier"];
+  
+  if (application.applicationState == UIApplicationStateActive) {
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];
+    pushHandler.notificationMessage = mutableNotification;
+    pushHandler.isInline = YES;
+    [pushHandler notificationReceived];
+  } else {
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushNotification"];    
+    pushHandler.notificationMessage = mutableNotification;    
+    [pushHandler performSelectorOnMainThread:@selector(notificationReceived) withObject:pushHandler waitUntilDone:NO];
+  }
+  completionHandler();
+}
+
+- (void)application:(UIApplication *) application handleActionWithIdentifier: (NSString *) identifier forLocalNotification: (NSDictionary *) notification completionHandler: (void (^)()) completionHandler {
+
+  NSLog(@"PushPlugin: (LOCAL) Interactive Notification %@ button pressed", identifier);
   
   // the notification already contains the category, but the client also needs the identifier (action button)
   NSMutableDictionary *mutableNotification = [notification mutableCopy];

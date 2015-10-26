@@ -14,6 +14,7 @@
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo;
 - (void)applicationDidBecomeActive:(UIApplication *)application;
 - (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forRemoteNotification:(NSDictionary *)userInfo completionHandler:(void(^)())completionHandler;
+- (void)application:(UIApplication *)application handleActionWithIdentifier:(NSString *)identifier forLocalNotification:(NSDictionary *)userInfo completionHandler:(void(^)())completionHandler;
 - (id) getCommandInstance:(NSString*)className;
 
 @property (nonatomic, retain) NSDictionary  *launchNotification;

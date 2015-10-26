@@ -130,13 +130,14 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
      * Parse bundle into normalized keys.
      */
     private void normalizeExtras(Bundle extras) {
-        Log.d(LOG_TAG, "mormalize extras");
+        Log.d(LOG_TAG, "normalize extras");
         Iterator<String> it = extras.keySet().iterator();
         while (it.hasNext()) {
             String key = it.next();
 
-            Log.d(LOG_TAG, "key = " + key);
-
+            if (key != null) {
+			Log.d(LOG_TAG, "key = " + key);
+			
             // If the key is "data" or "message" and the value is a json object extract
             // This is to support parse.com and other services. Issue #147 and pull #218
             if (key.equals(PARSE_COM_DATA) || key.equals(MESSAGE)) {
@@ -172,6 +173,7 @@ public class GCMIntentService extends GcmListenerService implements PushConstant
                 Log.d(LOG_TAG, "replace key " + key + " with " + newKey);
                 replaceKey(key, newKey, extras);
             }
+			}
         } // while
 
     }
